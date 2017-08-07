@@ -1,10 +1,12 @@
 [![Join the chat at https://gitter.im/evollu/react-native-fcm](https://badges.gitter.im/evollu/react-native-fcm.svg)](https://gitter.im/evollu/react-native-fcm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-## NOTE:
-- for latest RN, use latest
-- for RN < 0.40.0, use v2.5.6
-- for RN < 0.33.0, you need to user react-native-fcm@1.1.0
-- for RN < 0.30.0, you need to use react-native-fcm@1.0.15
+## NOTES:
+- current latest version: v8.x
+- for RN < 0.47.0, use react-native-fcm@7.5.1
+- for iOS SDK < 4, use react-native-fcm@6.2.3 (v6.x is still compatible with Firebase SDK v4)
+- for RN < 0.40.0, use react-native-fcm@2.5.6
+- for RN < 0.33.0, use react-native-fcm@1.1.0
+- for RN < 0.30.0, use react-native-fcm@1.0.15
 - local notification is not only available in V1
 
 - An example working project is available at: https://github.com/evollu/react-native-fcm/tree/master/Examples/simple-fcm-client
@@ -13,6 +15,16 @@
 
 - Run `npm install react-native-fcm --save`
 - Run `react-native link react-native-fcm` (RN 0.29.1+, otherwise `rnpm link react-native-fcm`)
+
+## Configure Firebase Console
+### FCM config file
+
+In [firebase console](https://console.firebase.google.com/), you can:
+- for **Android**: download `google-services.json` file and place it in `android/app` directory 
+- for **iOS**: download `GoogleService-Info.plist` file and place it in `/ios/your-project-name` directory (next to your `Info.plist`)
+
+Make sure you have certificates setup by following
+https://firebase.google.com/docs/cloud-messaging/ios/certs
 
 ## Android Configuration
 
@@ -54,12 +66,19 @@
 - Edit `{YOUR_MAIN_PROJECT}/app/build.gradle`:
 ```diff
  dependencies {
-     compile project(':react-native-fcm')
++    compile project(':react-native-fcm')
 +    compile 'com.google.firebase:firebase-core:10.0.1' //this decides your firebase SDK version
      compile fileTree(dir: "libs", include: ["*.jar"])
      compile "com.android.support:appcompat-v7:23.0.1"
      compile "com.facebook.react:react-native:+"  // From node_modules
  }
+```
+- Edit `android/settings.gradle`
+```diff
+  ...
++ include ':react-native-fcm'
++ project(':react-native-fcm').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-fcm/android')
+  include ':app'
 ```
 
 ### Config for notification and `click_action` in Android
@@ -159,7 +178,7 @@ Install the `Firebase/Messaging` pod:
 cd ios && pod init
 pod install Firebase/Messaging
 ```
-uncomment the "use_frameworks!" line in the podfile.
+NOTE: you don't need to enable `use_frameworks!`. if you have to have `use_frameworks!` make sure you don't have `inherit! :search_paths`
 
 ### Non Cocoapod approach
 
@@ -168,8 +187,6 @@ uncomment the "use_frameworks!" line in the podfile.
 2. Follow the `README` to link frameworks (Analytics+Messaging)
 
 ### Shared steps
-Make sure you have certificates setup by following
-https://firebase.google.com/docs/cloud-messaging/ios/certs
 
 Edit `AppDelegate.h`:
 ```diff
@@ -189,7 +206,10 @@ Edit `AppDelegate.m`:
   //...
 +   [FIRApp configure];
 +   [[UNUserNotificationCenter currentNotificationCenter] setDelegate:self];
-+ }
+
+    return YES;
+ }
+ 
 +
 + - (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler
 + {
@@ -211,14 +231,13 @@ Edit `AppDelegate.m`:
 + }
 ```
 
-### Xcode post installation steps
-- Select your project **Capabilities** and enable **Keychan Sharing** and *Background Modes* > **Remote notifications**.
+### Add Capabilities
+- Select your project **Capabilities** and enable:
+  - **Push Notifications**
+  - *Background Modes* > **Remote notifications**.
 
-- In Xcode menu bar, select *Product* > *Scheme* > **Manage schemes**. Select your project name Scheme then click on the minus sign **―** in the bottom left corner, then click on the plus sign **+** and rebuild your project scheme.
-
-### FCM config file
-
-In [firebase console](https://console.firebase.google.com/), you can get `google-services.json` file and place it in `android/app` directory and get `GoogleService-Info.plist` file and place it in `/ios/your-project-name` directory (next to your `Info.plist`)
+### FirebaseAppDelegateProxyEnabled
+This instruction assumes that you have FirebaseAppDelegateProxyEnabled=YES (default) so that Firebase will hook on push notification registration events. If you turn this flag off, you will be on your own to manage APNS tokens and link with Firebase token.
 
 ## Setup Local Notifications
 NOTE: local notification does NOT have any dependency on FCM library but you still need to include Firebase to compile. If there are enough demand to use this functionality alone, I will separate it out into another repo
@@ -251,6 +270,7 @@ NOTE: `com.evollu.react.fcm.FIRLocalMessagingPublisher` is required for presenti
 ## Usage
 
 ```javascript
+import {Platform} from 'react-native';
 import FCM, {FCMEvent, RemoteNotificationResult, WillPresentNotificationResult, NotificationType} from 'react-native-fcm';
 
 class App extends Component {
@@ -324,6 +344,7 @@ class App extends Component {
             vibrate: 300,                                       // Android only default: 300, no vibration if you pass null
             tag: 'some_tag',                                    // Android only
             group: "group",                                     // Android only
+            picture: "https://google.png",                      // Android only bigPicture style
             my_custom_data:'my_custom_field_value',             // extra data you want to throw
             lights: true,                                       // Android only, LED blinking (default false)
             show_in_foreground                                  // notification when app is in foreground (local & remote)
@@ -352,6 +373,15 @@ class App extends Component {
           my_custom_data_1: 'my_custom_field_value_1',
           my_custom_data_2: 'my_custom_field_value_2'
         });
+        
+        FCM.deleteInstanceId()
+            .then( () => {
+              //Deleted instance id successfully
+              //This will reset Instance ID and revokes all tokens.
+            })
+            .catch(error => {
+              //Error while deleting instance id 
+            });
     }
 }
 ```
@@ -384,7 +414,7 @@ Example of payload that is sent to FCM server:
 Check local notification guide below for configuration.
 
 ### Behaviour when sending `notification` and `data` payload through GCM
-- When app is not running and user clicks notification, notification data will be passed into `FCM.getInitialNotification` event
+- When user clicks notification to **launch** the application, you can get that notification by calling `FCM.getInitialNotification`. (NOTE: reloading javascript or resuming from background won't change the value)
 
 - When app is running in background (the tricky one, I strongly suggest you try it out yourself)
  - IOS will receive notificaton from `FCMNotificationReceived` event
@@ -478,6 +508,10 @@ There seems to be link issue with rnpm. Make sure that there is `new FIRMessagin
 #### I can't get notification in iOS emulator
 Remote notification can't reach iOS emulator since it can't fetch APNS token. Use real device.
 
+#### I'm not getting notfication when app is in background
+1. Make sure you've uploaded APNS certificates to Firebase and test with Firebase's native example to make sure certs are correct
+2. Try simple payload first, sometimes notification doesn't show up because of empty body, wrong sound name etc.
+
 #### App running in background doesn't trigger `FCMNotificationReceived` when receiving hybrid notification [Android]
 These is [an issue opened for that](https://github.com/google/gcm/issues/63). Behavior is not consistent between 2 platforms
 
@@ -498,6 +532,7 @@ You need to add this to your `android/app/proguard-rules.pro`:
 #### I'm getting `com.android.dex.DexException: Multiple dex files define Lcom/google/android/gms/internal/zzqf;`
 It is most likely that you are using other react-native-modules that requires conflicting google play service
 search for `compile "com.google.android.gms` in android and see who specifies specific version. Resolve conflict by loosing their version or specify a version resolve in gradle.
+Check this article https://medium.com/@suchydan/how-to-solve-google-play-services-version-collision-in-gradle-dependencies-ef086ae5c75f#.9l0u84y9t
 
 #### How do I tell if user clicks the notification banner?
 Check open from tray flag in notification. It will be either 0 or 1 for iOS and undefined or 1 for android. I decide for iOS based on [this](http://stackoverflow.com/questions/20569201/remote-notification-method-called-twice), and for android I set it if notification is triggered by intent change.
@@ -537,6 +572,9 @@ No. Method swizzling in Firebase Cloud Messaging handles this unless you turn th
 
 #### I want to add actions in iOS notification
 Check this https://github.com/evollu/react-native-fcm/issues/325
+
+#### React/RCTBridgeModule.h not found
+This is mostly caused by React Native upgrade. Here is a fix http://stackoverflow.com/questions/41477241/react-native-xcode-upgrade-and-now-rctconvert-h-not-found
 
 #### Some features are missing
 Issues and pull requests are welcome. Let's make this thing better!
